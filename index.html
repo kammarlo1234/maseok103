@@ -110,6 +110,14 @@
         <label class="todo"><input type="checkbox" id="fx" data-change="setFx"><span>화려한 효과</span></label>
     </div>
 
+    <!-- 파일을 더블클릭해서 열면(file://) 브라우저가 JS 모듈을 막습니다. 그때는 안내를 띄웁니다. -->
+    <script>
+        if (location.protocol === 'file:') {
+            var b = document.getElementById('login-btn'), m = document.getElementById('login-msg');
+            b.textContent = '서버로 열어야 해요';
+            m.textContent = '파일을 직접 열면 브라우저 보안 때문에 작동하지 않아요. 배포된 주소나 VS Code의 Live Server로 열어 주세요.';
+        }
+    </script>
     <noscript><p class="noscript">이 사이트는 자바스크립트를 켜야 사용할 수 있어요.</p></noscript>
 </body>
 </html>

@@ -199,7 +199,7 @@ body::after { background: linear-gradient(225deg, var(--grad-c), var(--grad-d));
     letter-spacing: -.03em;
     filter: drop-shadow(0 4px 18px rgba(0, 30, 40, .35));
 }
-.login-card { max-width: 360px; margin: 0 auto; display: grid; gap: 6px; padding: 20px; }
+.card.login-card { max-width: 360px; margin: 0 auto; display: grid; gap: 6px; padding: 20px; }
 .login-card h2 { margin: 0 0 6px; font-size: 18px; }
 .login-card label { font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 4px; }
 .login-card button { margin-top: 8px; }
