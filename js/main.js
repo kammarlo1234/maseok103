@@ -36,6 +36,37 @@ const updateTopClock = () => {
 updateTopClock();
 setInterval(updateTopClock, 1000);
 
+// 마석고등학교 좌표의 현재 날씨를 Open-Meteo에서 받아옵니다. (비상업적 무료 API)
+const MASEOK_WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=37.6438071&longitude=127.2993147&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&timezone=Asia%2FSeoul';
+const weatherLabels = {
+    0: ['맑음', '☀️'], 1: ['대체로 맑음', '🌤️'], 2: ['구름 조금', '⛅'], 3: ['흐림', '☁️'],
+    45: ['안개', '🌫️'], 48: ['안개', '🌫️'], 51: ['약한 이슬비', '🌦️'], 53: ['이슬비', '🌦️'], 55: ['강한 이슬비', '🌧️'],
+    56: ['어는 이슬비', '🌧️'], 57: ['어는 이슬비', '🌧️'], 61: ['약한 비', '🌧️'], 63: ['비', '🌧️'], 65: ['강한 비', '🌧️'],
+    66: ['어는 비', '🌧️'], 67: ['어는 비', '🌧️'], 71: ['약한 눈', '🌨️'], 73: ['눈', '🌨️'], 75: ['강한 눈', '❄️'],
+    77: ['싸락눈', '🌨️'], 80: ['소나기', '🌦️'], 81: ['소나기', '🌧️'], 82: ['강한 소나기', '⛈️'],
+    85: ['눈 소나기', '🌨️'], 86: ['강한 눈 소나기', '❄️'], 95: ['뇌우', '⛈️'], 96: ['우박 동반 뇌우', '⛈️'], 99: ['우박 동반 뇌우', '⛈️']
+};
+async function updateWeather() {
+    const panel = $('#top-weather'), temp = $('#weather-temp');
+    try {
+        const response = await fetch(MASEOK_WEATHER_URL, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Weather API ${response.status}`);
+        const data = await response.json();
+        const current = data.current;
+        const [label, emoji] = weatherLabels[current.weather_code] || ['날씨', '🌡️'];
+        panel.querySelector('.weather-icon').textContent = emoji;
+        temp.textContent = `${Math.round(current.temperature_2m)}° ${label}`;
+        panel.title = `마석고등학교 · 체감 ${Math.round(current.apparent_temperature)}° · 습도 ${current.relative_humidity_2m}% · 풍속 ${current.wind_speed_10m}km/h · Open-Meteo`;
+        panel.setAttribute('aria-label', `마석고등학교 현재 날씨 ${label}, ${Math.round(current.temperature_2m)}도`);
+    } catch (error) {
+        console.warn('날씨 정보를 불러오지 못했습니다.', error);
+        temp.textContent = '날씨 정보 없음';
+        panel.title = '날씨 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.';
+    }
+}
+updateWeather();
+setInterval(updateWeather, 30 * 60 * 1000);
+
 // ----- 탭: 아래(큰 화면에선 왼쪽) 메뉴는 4개만 -----
 const TABS = [['today', 'home', '오늘'], ['timetable', 'clock', '시간표'], ['schedule', 'cal', '일정'], ['us', 'users', '우리 반']];
 
