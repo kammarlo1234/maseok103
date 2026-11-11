@@ -24,6 +24,18 @@ import { refreshMe, actions as meActions } from './views/me.js';
 
 const SESSION_KEY = 'maseok_session';   // 다음 방문 때 로그인 화면을 먼저 보여 줄지 정하는 힌트
 
+// 상단 시계는 기기 시간대를 따라 매초 갱신합니다.
+const topClock = $('#top-clock');
+const updateTopClock = () => {
+    const now = new Date();
+    topClock.textContent = new Intl.DateTimeFormat('ko-KR', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).format(now);
+    topClock.dateTime = now.toISOString();
+};
+updateTopClock();
+setInterval(updateTopClock, 1000);
+
 // ----- 탭: 아래(큰 화면에선 왼쪽) 메뉴는 4개만 -----
 const TABS = [['today', 'home', '오늘'], ['timetable', 'clock', '시간표'], ['schedule', 'cal', '일정'], ['us', 'users', '우리 반']];
 
