@@ -38,7 +38,7 @@ export function bannerManageView() {
             <button type="button" class="ghost" data-action="editBanner" data-id="${esc(b.id)}">수정</button>
             <button type="button" class="ghost" data-action="deleteBanner" data-id="${esc(b.id)}">삭제</button>
         </span></div>`).join('');
-    return `<section class="card" id="banner-form-card"><h3>${editing ? '✏️ 배너 수정' : '🎉 특별 배너 만들기'}</h3>
+    return `<section class="card" id="banner-form-card"><h3>${editing ? '배너 수정' : '특별 배너 만들기'}</h3>
             <p class="m">대항전 결과, 행사 순위, 학급 소식 등을 알리는 배너입니다. 반장·부반장·선생님이 등록·수정·삭제할 수 있습니다.</p>
             <form data-submit="saveBanner">
                 <div class="row">
@@ -57,7 +57,7 @@ export function bannerManageView() {
                 </div>
             </form>
         </section>
-        <section class="card"><h3>🗂 배너 관리</h3>${list || '<p class="m">등록된 배너가 없습니다.</p>'}</section>`;
+        <section class="card"><h3>배너 관리</h3>${list || '<p class="m">등록된 배너가 없습니다.</p>'}</section>`;
 }
 
 const fields = () => ['#bn-category', '#bn-emoji', '#bn-title', '#bn-content', '#bn-active', '#bn-end'].map(s => $(s));

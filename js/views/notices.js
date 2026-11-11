@@ -3,6 +3,7 @@ import { S, RN, isLeader } from '../store.js';
 import { $, esc, fmtTime, uid, cldT, safeImg, patch, compressImage, clearFields } from '../utils.js';
 import { refs, doc, setDoc, deleteDoc, uploadImage } from '../firebase.js';
 import { openDialog, isOpen } from '../dialog.js';
+import { icon } from '../icons.js';
 
 const MAX_PHOTOS = 3;
 const COOLDOWN_MS = 20000;
@@ -24,9 +25,9 @@ export function noticeBar() {
         const pc = photosOf(n).length;
         const isNew = Date.now() - n.createdAt < 864e5;
         const text = String(n.text || (pc ? `사진 ${pc}장` : '')).replace(/\s+/g, ' ');
-        body = `<span class="nbar-text">${isNew ? '<i class="tag-new">NEW</i>' : ''}${esc(authorName(n))}: ${pc ? '📷 ' : ''}${esc(text)}</span>`;
+        body = `<span class="nbar-text">${isNew ? '<i class="tag-new">NEW</i>' : ''}${esc(authorName(n))}: ${pc ? '[사진] ' : ''}${esc(text)}</span>`;
     }
-    return `<button type="button" class="card nbar" data-action="openNotices"><b class="nbar-label">📢 공지</b>${body}<span class="m" aria-hidden="true">›</span></button>`;
+    return `<button type="button" class="card nbar" data-action="openNotices"><b class="nbar-label">${icon('mega')}공지</b>${body}<span class="m" aria-hidden="true">${icon('chev')}</span></button>`;
 }
 
 function listHtml() {
@@ -58,7 +59,7 @@ function setStatus(text) {
 
 function openNotices() {
     openDialog('notice-dlg', `<div class="panel">
-        <div class="panel-head"><h2>📢 공지사항</h2><button type="button" class="ghost" data-action="closeDialog" data-id="notice-dlg">닫기 ✕</button></div>
+        <div class="panel-head"><h2>공지사항</h2><button type="button" class="ghost" data-action="closeDialog" data-id="notice-dlg">닫기 ✕</button></div>
         <form class="row" data-submit="addNotice">
             <label class="sr-only" for="nin">공지 내용</label>
             <textarea id="nin" rows="2" maxlength="200" placeholder="공지 내용을 입력하세요 (200자 이내)"></textarea>

@@ -23,6 +23,8 @@ export const S = {
     sgErr: false,
     tab: 'today',
     menuOpen: false,
+    sec: 'clean',      // 우리 반 탭의 하위 구역
+    filter: 'all',     // 일정 탭의 종류 필터
     calY: now.getFullYear(),
     calM: now.getMonth(),
     sel: today()

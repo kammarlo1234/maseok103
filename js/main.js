@@ -5,68 +5,85 @@ import {
     onSnapshot, query, orderBy, limit
 } from './firebase.js';
 import { S, RN, isLeader, isStaff, onRender, requestRender, renderNow } from './store.js';
-import { $, esc, today, isDate, local, patch } from './utils.js';
+import { $, esc, isDate, local, patch } from './utils.js';
 import { openDialog, closeDialog, closeAllDialogs } from './dialog.js';
+import { applyUI, themeActions } from './theme.js';
+import { icon } from './icons.js';
 
 import { todayView, refreshOrder, actions as todayActions } from './views/today.js';
 import { refreshNotices, actions as noticeActions } from './views/notices.js';
 import { calView, matchView, refreshAssess, actions as calActions } from './views/calendar.js';
 import { cleaningView, normalizeCleaning, actions as cleaningActions } from './views/cleaning.js';
 import { ttView, ttNormalize, actions as ttActions } from './views/timetable.js';
-import { mealView, mealMounted, loadMeal, actions as mealActions } from './views/meal.js';
+import { mealView, mealMounted, prefetchToday, actions as mealActions } from './views/meal.js';
 import { sgView, syncSuggestions, stopSuggestions, actions as sgActions } from './views/suggestions.js';
-import { bannerDisplay, bannerManageView, bannersVisible, actions as bannerActions } from './views/banners.js';
+import { bannerDisplay, bannerManageView, actions as bannerActions } from './views/banners.js';
 import { dutyView, actions as dutyActions } from './views/duty.js';
 import { adminView, actions as adminActions } from './views/admin.js';
+import { refreshMe, actions as meActions } from './views/me.js';
 
 const SESSION_KEY = 'maseok_session';   // 다음 방문 때 로그인 화면을 먼저 보여 줄지 정하는 힌트
-const UI_KEY = 'classSite_ui';
 
-// ----- 탭 -----
-const TABS = [
-    ['today', '⌂', '오늘'], ['timetable', '🕘', '시간표'], ['cal', '▦', '캘린더'], ['meal', '🍚', '급식'],
-    ['match', '🏆', '대항전'], ['duty', '👤', '1인1역'], ['cleaning', '🧹', '청소'], ['suggest', '💬', '건의']
+// ----- 탭: 아래(큰 화면에선 왼쪽) 메뉴는 4개만 -----
+const TABS = [['today', 'home', '오늘'], ['timetable', 'clock', '시간표'], ['schedule', 'cal', '일정'], ['us', 'users', '우리 반']];
+
+// 예전 주소(#cal, #match, #cleaning ...)도 새 탭으로 이어 줍니다.
+const ALIAS = {
+    cal: ['schedule', 'all'], match: ['schedule', 'match'],
+    cleaning: ['us', 'clean'], duty: ['us', 'duty'], suggest: ['us', 'suggest'],
+    bannerManage: ['us', 'banner'], admin: ['us', 'admin']
+};
+
+const FILTERS = [['all', '전체'], ['assess', '수행평가'], ['match', '대항전']];
+const scheduleView = () => `<div class="segs" role="group" aria-label="일정 종류">${FILTERS.map(([k, label]) =>
+    `<button type="button" class="${S.filter === k ? 'on' : ''}" data-action="setFilter" data-v="${k}" aria-pressed="${S.filter === k}">${label}</button>`).join('')}</div>
+    ${S.filter === 'match' ? matchView() : calView(S.filter)}`;
+
+const secsFor = () => [
+    ['clean', '청소·당번'], ['duty', '1인1역'], ['suggest', '건의'],
+    ...(isLeader() ? [['banner', '배너']] : []),
+    ...(isStaff() ? [['admin', '관리']] : [])
 ];
-const QUICK = ['today', 'timetable', 'cal', 'meal', 'match'];
-const tabsFor = () => [
-    ...TABS,
-    ...(isLeader() ? [['bannerManage', '🎉', '배너 관리']] : []),
-    ...(isStaff() ? [['admin', '⚙', '관리']] : [])
-];
+const SEC_VIEW = { clean: cleaningView, duty: dutyView, suggest: sgView, banner: bannerManageView, admin: adminView };
+function usView() {
+    const secs = secsFor();
+    if (!secs.some(x => x[0] === S.sec)) S.sec = 'clean';
+    return `<div class="segs" role="group" aria-label="우리 반 메뉴">${secs.map(([k, label]) =>
+        `<button type="button" class="${S.sec === k ? 'on' : ''}" data-action="setSec" data-v="${k}" aria-pressed="${S.sec === k}">${label}</button>`).join('')}</div>
+    ${SEC_VIEW[S.sec]()}`;
+}
+
 const VIEWS = {
     today: { render: todayView },
     timetable: { render: ttView },
-    cal: { render: calView },
-    meal: { render: mealView, mounted: mealMounted },
-    match: { render: matchView },
-    duty: { render: dutyView },
-    cleaning: { render: cleaningView },
-    suggest: { render: sgView },
-    bannerManage: { render: bannerManageView },
-    admin: { render: adminView }
+    schedule: { render: scheduleView },
+    us: { render: usView },
+    meal: { render: mealView, mounted: mealMounted }   // 급식은 오늘 탭의 점심 칸에서 들어가요
 };
 
-const tabFromHash = () => decodeURIComponent(location.hash.slice(1)) || 'today';
-S.tab = tabFromHash();
+function route() {
+    const h = decodeURIComponent(location.hash.slice(1)) || 'today';
+    const a = ALIAS[h];
+    if (a) {
+        S.tab = a[0];
+        if (a[0] === 'schedule') S.filter = a[1]; else S.sec = a[1];
+        history.replaceState(null, '', '#' + a[0]);
+    } else {
+        S.tab = h;
+    }
+}
+route();
 
 // ----- 화면 그리기 -----
 let lastTab = null;
 let mealPrefetched = false;
 
-const accountHtml = () => `
-    <button type="button" class="menu-toggle" data-action="toggleMenu" aria-label="${S.menuOpen ? '메뉴 닫기' : '메뉴 열기'}" aria-expanded="${S.menuOpen}" aria-controls="side-rail"><span></span><span></span><span></span></button>
-    <span class="account-name">${esc(S.me.name)}</span><i class="badge">${RN[S.me.role] || ''}</i>
-    <button type="button" class="ghost on-dark" data-action="toggleBanners" aria-pressed="${bannersVisible()}">${bannersVisible() ? '📣 배너 켜짐' : '🔕 배너 꺼짐'}</button>
-    <button type="button" class="ghost on-dark" data-action="openPassword">비밀번호 변경</button>
-    <button type="button" class="ghost on-dark" data-action="logout">로그아웃</button>`;
+const meHtml = () => `<span class="me-ic">${icon('user')}</span><span class="me-name">${esc(S.me.name)}</span><i class="badge">${esc(RN[S.me.role] || '')}</i>`;
 
-const navHtml = tabs => tabs.map(([k, icon, label]) => `<a href="#${k}" class="nav-link${S.tab === k ? ' on' : ''}"${S.tab === k ? ' aria-current="page"' : ''} title="${label}"><span class="nav-icon" aria-hidden="true">${icon}</span><span class="nav-label">${label}</span></a>`).join('');
-
-const quickHtml = tabs => {
-    const have = new Set(tabs.map(t => t[0]));
-    return tabs.filter(([k]) => QUICK.includes(k) && have.has(k))
-        .map(([k, icon, label]) => `<a href="#${k}" class="${S.tab === k ? 'on' : ''}"${S.tab === k ? ' aria-current="page"' : ''}><span aria-hidden="true">${icon}</span><small>${label}</small></a>`).join('')
-        + `<button type="button" data-action="toggleMenu" aria-label="전체 메뉴" aria-expanded="${S.menuOpen}"><span aria-hidden="true">☷</span><small>전체</small></button>`;
+const tabsHtml = () => {
+    const cur = S.tab === 'meal' ? 'today' : S.tab;
+    return TABS.map(([k, ic, label]) =>
+        `<a href="#${k}" class="tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('');
 };
 
 function render() {
@@ -76,15 +93,12 @@ function render() {
     if (!S.me || !S.cleaning || !S.timetable) { root.dataset.view = 'boot'; return; }
     root.dataset.view = 'app';
 
-    const tabs = tabsFor();
-    if (!tabs.some(t => t[0] === S.tab)) {
+    if (!VIEWS[S.tab]) {
         S.tab = 'today';
         history.replaceState(null, '', '#today');
     }
-    patch($('#account'), accountHtml());
-    patch($('#side-nav'), navHtml(tabs));
-    patch($('#quick-nav'), quickHtml(tabs));
-    $('#layout').classList.toggle('menu-open', S.menuOpen);
+    patch($('#top-me'), meHtml());
+    patch($('#tabbar'), tabsHtml());
 
     const view = $('#view');
     const changed = lastTab !== S.tab;
@@ -100,12 +114,13 @@ function render() {
     refreshNotices();
     refreshOrder();
     refreshAssess();
+    refreshMe();
 
-    // 첫 화면이 뜬 뒤 한가할 때 오늘 급식을 미리 받아 둡니다.
+    // 첫 화면이 뜬 뒤 한가할 때 오늘 급식을 미리 받아 둡니다. (오늘 탭 점심 칸에 쓰여요)
     if (!mealPrefetched) {
         mealPrefetched = true;
         const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1200));
-        idle(() => loadMeal(today(), { silent: true }));
+        idle(prefetchToday);
     }
 }
 onRender(render);
@@ -118,7 +133,7 @@ const watch = (ref, onData, onError = console.error) => unsubs.push(onSnapshot(r
 function resetData() {
     Object.assign(S, {
         me: null, users: [], events: [], roles: [], todos: [], cleaning: null, timetable: null,
-        notices: [], noticeErr: false, banners: [], menuOpen: false
+        notices: [], noticeErr: false, banners: []
     });
     lastTab = null;
 }
@@ -230,7 +245,7 @@ async function login() {
 
 function openPassword() {
     openDialog('pw-dlg', `<form class="panel stack" data-submit="changePassword">
-        <div class="panel-head"><h2>🔑 비밀번호 변경</h2><button type="button" class="ghost" data-action="closeDialog" data-id="pw-dlg">닫기 ✕</button></div>
+        <div class="panel-head"><h2>비밀번호 변경</h2><button type="button" class="ghost" data-action="closeDialog" data-id="pw-dlg">닫기 ✕</button></div>
         <label for="pw-cur">현재 비밀번호</label><input id="pw-cur" type="password" autocomplete="current-password" required>
         <label for="pw-new">새 비밀번호 (8자 이상)</label><input id="pw-new" type="password" autocomplete="new-password" minlength="8" required>
         <label for="pw-new2">새 비밀번호 확인</label><input id="pw-new2" type="password" autocomplete="new-password" minlength="8" required>
@@ -262,52 +277,21 @@ async function changePassword() {
     }
 }
 
-// ----- 화면 설정 (테마 · 효과) -----
-let ui = local.get(UI_KEY, {}) || {};
-function applyUI() {
-    const r = document.documentElement;
-    if (ui.t && ui.t !== 'system') r.dataset.theme = ui.t;
-    else delete r.dataset.theme;
-    r.dataset.fx = ui.fx === false ? 'off' : 'on';
-    document.querySelectorAll('#settings [data-t]').forEach(b => {
-        const on = b.dataset.t === (ui.t || 'system');
-        b.classList.toggle('on', on);
-        b.setAttribute('aria-pressed', on);
-    });
-    $('#fx').checked = ui.fx !== false;
-}
-function saveUI() {
-    local.set(UI_KEY, ui);
-    applyUI();
-}
-function setSettingsOpen(open) {
-    $('#settings').classList.toggle('on', open);
-    $('.fab').setAttribute('aria-expanded', open);
-}
-
-// ----- 메뉴 -----
-function toggleMenu() {
-    S.menuOpen = !S.menuOpen;
-    requestRender();
-}
-
 // ----- 버튼·폼 동작 연결 (이벤트 위임) -----
 // HTML에는 data-action="이름"만 적고, 실제 함수는 여기서 찾아 실행합니다.
 // 사용자 데이터가 JS 코드 속에 들어가지 않으므로 XSS를 막을 수 있어요.
 const ACTIONS = {
     ...todayActions, ...noticeActions, ...calActions, ...cleaningActions, ...ttActions,
     ...mealActions, ...sgActions, ...bannerActions, ...dutyActions, ...adminActions,
-    login, openPassword, changePassword, toggleMenu,
+    ...themeActions, ...meActions,
+    login, openPassword, changePassword,
     logout: () => signOut(auth),
     closeDialog: el => closeDialog(el.dataset.id),
-    toggleSettings: () => setSettingsOpen(!$('#settings').classList.contains('on')),
-    setTheme: el => { ui.t = el.dataset.t; saveUI(); },
-    setFx: el => { ui.fx = el.checked; saveUI(); }
+    setSec: el => { S.sec = el.dataset.v; requestRender(); },
+    setFilter: el => { S.filter = el.dataset.v; requestRender(); }
 };
 
 document.addEventListener('click', e => {
-    if ($('#settings').classList.contains('on') && !e.target.closest('#settings, .fab')) setSettingsOpen(false);
-    if (S.menuOpen && e.target.closest('.nav-link')) { S.menuOpen = false; requestRender(); }
     const el = e.target.closest('[data-action]');
     if (!el || el.disabled) return;
     const fn = ACTIONS[el.dataset.action];
@@ -334,15 +318,8 @@ document.addEventListener('submit', e => {
     ACTIONS[form.dataset.submit]?.(form, e);
 });
 
-document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return;
-    if (S.menuOpen) { S.menuOpen = false; requestRender(); }
-    if ($('#settings').classList.contains('on')) setSettingsOpen(false);
-});
-
 window.addEventListener('hashchange', () => {
-    S.tab = tabFromHash();
-    S.menuOpen = false;
+    route();
     window.scrollTo({ top: 0 });
     requestRender();
 });
@@ -355,6 +332,11 @@ function scheduleMidnight() {
 }
 scheduleMidnight();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
+
+// 오늘 탭의 '지금 수업' 표시를 30초마다 새로 계산합니다. (바뀐 게 없으면 화면은 그대로예요)
+setInterval(() => {
+    if (S.tab === 'today' && S.me && !document.hidden) requestRender();
+}, 30000);
 
 // ----- 시작 -----
 applyUI();

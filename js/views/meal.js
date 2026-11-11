@@ -1,5 +1,6 @@
 // 🍚 급식 (kschoolinfo NEIS 프록시)
 import { requestRender } from '../store.js';
+import { icon } from '../icons.js';
 import { esc, today, addDays, isDate, atNoon, WEEKDAYS, local } from '../utils.js';
 
 const SCHOOL = { name: '마석고등학교', region: '경기도', kind: '고등학교' };
@@ -100,10 +101,11 @@ export function mealView() {
     let body;
     if (M.status === 'ok') body = menuHtml(M.row);
     else if (M.status === 'err') body = `<div class="meal-empty">급식 정보를 불러오지 못했어요.<br><span class="m">${esc(M.error)}</span><br><button type="button" class="ghost" data-action="mealRetry">다시 시도</button></div>`;
-    else body = '<p class="meal-empty">🍱 급식 정보를 불러오는 중...</p>';
+    else body = '<p class="meal-empty">급식 정보를 불러오는 중이에요...</p>';
     const d = atNoon(M.date);
     const title = M.date === today() ? '오늘의 마석고 급식' : `${d.getMonth() + 1}월 ${d.getDate()}일(${WEEKDAYS[d.getDay()]}) 급식`;
-    return `<section class="card meal-card">
+    return `<a class="back" href="#today">${icon('chev', 'flip')} 오늘로 돌아가기</a>
+    <section class="card meal-card">
         <h3>${title}</h3>
         <div class="row meal-date">
             <button type="button" class="ghost" data-action="mealShift" data-d="-1" aria-label="이전 날짜">‹</button>
@@ -116,6 +118,24 @@ export function mealView() {
 }
 
 export const mealMounted = () => loadMeal(M.date);
+
+/** 오늘 탭용: undefined = 아직 안 받음, null = 오늘 급식 없음, 객체 = {menu, kcal} */
+export function lunchToday() {
+    const k = today().replaceAll('-', '');
+    if (!cache.has(k)) return undefined;
+    const row = cache.get(k);
+    if (!row) return null;
+    const menu = (Array.isArray(row.menu) ? row.menu : []).map(i => (typeof i === 'string' ? i : i?.name || '')).filter(Boolean);
+    return { menu, kcal: row.calories || '' };
+}
+
+/** 선택된 날짜(M.date)를 건드리지 않고 오늘 급식만 미리 받아 둡니다. */
+export async function prefetchToday() {
+    try {
+        await fetchMeal(today());
+    } catch { /* 오늘 탭은 '급식 보기'로 대신 안내합니다. */ }
+    requestRender();
+}
 
 export const actions = {
     mealShift: el => loadMeal(addDays(M.date, Number(el.dataset.d))),

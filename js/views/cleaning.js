@@ -79,6 +79,23 @@ export function boardDutyFor(ds) {
     return c.order[((idx % n) + n) % n];
 }
 
+let editing = false;   // 선생님·개발자가 '편집'을 눌렀을 때만 설정 폼을 보여 줍니다.
+
+/** 오늘 탭 타임라인용 한 줄 요약 */
+export function cleanSummary() {
+    const date = today();
+    const w = atNoon(date).getDay();
+    const board = boardDutyFor(date);
+    const boardMine = !!board && S.me?.name === board;
+    if (w === 0 || w === 6) return { text: '주말에는 청소가 없어요', board: '', mine: false };
+    if (S.cleaning.exceptions.some(x => x.date === date)) return { text: '오늘은 청소 제외일이에요', board: '', mine: false };
+    const g = S.cleaning.schedule[w];
+    if (!g) return { text: '담당 조가 아직 정해지지 않았어요', board, mine: boardMine };
+    const cfg = S.cleaning.groups[g] || {};
+    const mine = Object.entries(ROLE_META).find(([k]) => (cfg[k] || []).includes(String(S.me?.id)));
+    return { text: `${g}조 담당${mine ? `, 나는 ${mine[1].label}` : ''}`, board, mine: boardMine || !!mine };
+}
+
 export function cleanTodayCard() {
     const date = today();
     const w = atNoon(date).getDay();
@@ -100,7 +117,7 @@ export function cleanTodayCard() {
     const boardLine = board
         ? `<p class="m board-line">🧽 오늘 칠판 당번 <b>${esc(board)}</b>${S.me?.name === board ? ' <i class="badge">나</i>' : ''}</p>`
         : '';
-    return `<section class="card"><h3>🧹 오늘의 청소</h3>${body}${boardLine}</section>`;
+    return `<section class="card"><h3>오늘의 청소</h3>${body}${boardLine}</section>`;
 }
 
 function boardView() {
@@ -114,7 +131,7 @@ function boardView() {
     const wk = ds => '일월화수목금토'[atNoon(ds).getDay()];
     const rows = days.map(([ds, who]) => `<div class="ev"><b>${ds.slice(5)} (${wk(ds)})</b><span>${esc(who)}${c.overrides[ds] ? ' <i class="badge">지정</i>' : ''}${ds === td ? ' <i class="badge">오늘</i>' : ''}</span></div>`).join('');
     const options = c.order.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-    const admin = !isStaff() ? '' : `<h4>날짜별로 직접 지정</h4>
+    const admin = !isStaff() || !editing ? '' : `<h4>날짜별로 직접 지정</h4>
         <form class="row" data-submit="addBoardOverride">
             <input id="bd-date" type="date" value="${td}" aria-label="날짜" data-keep>
             <select id="bd-name" aria-label="당번" data-keep>${options}</select>
@@ -129,7 +146,7 @@ function boardView() {
             </form>
             <p class="m">위 날짜에 위 사람이 당번이 되고, 이후 평일(제외일 건너뜀)마다 순서대로 넘어가요.</p>
         </details>`;
-    return `<section class="card"><h3>🧽 칠판 당번</h3><p class="m">${esc(c.order.join(' → '))} 순서로 평일마다 돌아가요.</p>${rows || '<p class="m">예정된 당번이 없어요.</p>'}${admin}</section>`;
+    return `<section class="card"><h3>칠판 당번</h3><p class="m">${esc(c.order.join(' → '))} 순서로 평일마다 돌아가요.</p>${rows || '<p class="m">예정된 당번이 없어요.</p>'}${admin}</section>`;
 }
 
 function adminView() {
@@ -141,13 +158,13 @@ function adminView() {
         </fieldset>`).join('')}
     </details>`).join('');
     const exceptions = S.cleaning.exceptions.slice().sort((a, b) => a.date.localeCompare(b.date));
-    return `<section class="card"><h3>📆 요일별 담당 조 설정</h3>${schedule}<button type="button" class="mt" data-action="saveCleaningConfig">요일 설정 저장</button></section>
-        <section class="card"><h3>👥 조별 청소 담당자 설정</h3>
+    return `<section class="card"><h3>요일별 담당 조 설정</h3>${schedule}<button type="button" class="mt" data-action="saveCleaningConfig">요일 설정 저장</button></section>
+        <section class="card"><h3>조별 청소 담당자 설정</h3>
             <p class="m">총괄 1명 · 쓸기 3~4명 · 닦기 3명 · 칠판 정리 1명으로 지정하세요. 한 조 안에서 같은 학생을 중복 배정할 수 없습니다.</p>
             ${groups}
             <button type="button" class="mt" data-action="saveCleaningConfig">조별 담당자 저장</button>
         </section>
-        <section class="card"><h3>🚫 청소 제외일 관리</h3>
+        <section class="card"><h3>청소 제외일 관리</h3>
             <p class="m">공휴일이나 임시 휴업일은 자동 제외하지 않습니다. 날짜를 직접 등록해야 합니다.</p>
             <form class="row" data-submit="addCleaningException">
                 <input id="clean-ex-date" type="date" aria-label="제외할 날짜" data-keep>
@@ -158,7 +175,9 @@ function adminView() {
         </section>`;
 }
 
-export const cleaningView = () => `${cleanTodayCard()}${boardView()}${isStaff() ? adminView() : ''}`;
+const editBar = () => (isStaff()
+    ? `<p class="row"><button type="button" class="ghost" data-action="toggleCleanEdit">${editing ? '편집 끝내기' : '청소 설정 편집'}</button></p>` : '');
+export const cleaningView = () => `${cleanTodayCard()}${boardView()}${editBar()}${isStaff() && editing ? adminView() : ''}`;
 
 // ----- 저장 -----
 async function persist(next) {
@@ -255,6 +274,7 @@ async function removeCleaningException(el) {
 }
 
 export const actions = {
+    toggleCleanEdit: () => { editing = !editing; requestRender(); },
     saveCleaningConfig, addBoardOverride, removeBoardOverride,
     saveBoardAnchor, addCleaningException, removeCleaningException
 };

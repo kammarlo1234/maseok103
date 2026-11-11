@@ -83,7 +83,7 @@ export function sgView() {
         ? '학급 운영, 자리, 행사, 규칙 등 우리 반에 바라는 점을 적어 주세요. 선생님, 개발자, 반장, 부반장이 볼 수 있어요.'
         : '사이트의 오류, 불편한 점, 있었으면 하는 기능을 적어 주세요. 선생님과 개발자만 볼 수 있어요.';
     const title = staff ? '📥 받은 건의함' : isLeaderOnly() ? '📥 학급 건의 · 내가 보낸 건의' : '📮 내가 보낸 건의';
-    return `<section class="card"><h3>💬 건의사항 보내기</h3>
+    return `<section class="card"><h3>건의사항 보내기</h3>
             <div class="row">${catBtn('class')}${catBtn('site')}</div>
             <p class="m">${hint}</p>
             <form data-submit="sgSend">

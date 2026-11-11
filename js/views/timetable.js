@@ -13,6 +13,7 @@ const blankWeek = () => ({
 
 let week = 1;
 let saving = false;
+let editing = false;   // '편집'을 눌렀을 때만 편집 칸을 보여 줍니다.
 let status = '';
 
 const canEdit = () => ['teacher', 'dev'].includes(S.me?.role);
@@ -84,8 +85,8 @@ function table(w, editable) {
 
 export function ttView() {
     const w = S.timetable[week];
-    const editable = canEdit();
-    const weekBar = `<div class="row tt-bar">${[[1, '이번 주'], [2, '다음 주']].map(([n, label]) => `<button type="button" class="${week === n ? '' : 'ghost'}" data-action="ttWeek" data-w="${n}" aria-pressed="${week === n}">${label}</button>`).join('')}</div>`;
+    const editable = canEdit() && editing;
+    const weekBar = `<div class="row tt-bar">${[[1, '이번 주'], [2, '다음 주']].map(([n, label]) => `<button type="button" class="${week === n ? '' : 'ghost'}" data-action="ttWeek" data-w="${n}" aria-pressed="${week === n}">${label}</button>`).join('')}${canEdit() ? `<button type="button" class="ghost push" data-action="ttEdit">${editing ? '편집 끝내기' : '시간표 편집'}</button>` : ''}</div>`;
     let body;
     if (editable) {
         body = `<div id="tt-editor">
@@ -102,7 +103,7 @@ export function ttView() {
         const hasData = w.days.some(day => day.some(c => c.s || c.t));
         body = hasData ? table(w, false) : '<p class="m">아직 등록된 시간표가 없어요. 선생님께 시간표 작성을 요청해 주세요.</p>';
     }
-    return `<section class="card tt-card"><h3>🕘 우리 반 시간표</h3>${weekBar}${body}${editable ? '<p class="m">저장하면 같은 사이트의 모든 사용자에게 바로 공유됩니다.</p>' : ''}</section>`;
+    return `<section class="card tt-card"><h3>우리 반 시간표</h3>${weekBar}${body}${editable ? '<p class="m">저장하면 같은 사이트의 모든 사용자에게 바로 공유됩니다.</p>' : ''}</section>`;
 }
 
 function ttWeek(el) {
@@ -151,4 +152,12 @@ async function ttSave() {
     }
 }
 
-export const actions = { ttWeek, ttAddPeriod, ttRemovePeriod, ttSave };
+function ttEdit() {
+    if (!canEdit()) return;
+    if (editing) collect();
+    editing = !editing;
+    status = '';
+    requestRender();
+}
+
+export const actions = { ttEdit, ttWeek, ttAddPeriod, ttRemovePeriod, ttSave };

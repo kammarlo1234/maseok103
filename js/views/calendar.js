@@ -23,7 +23,7 @@ async function mutateEvents(fn) {
 
 export function evRow(e, withDelete = false) {
     const assess = e.type === 'assess';
-    const inner = `<b>${ddayLabel(dday(e.date))}</b><span>${e.type === 'match' ? '🏆' : '📝'} ${esc(e.title)}</span><span class="m">${esc(e.date)} ${esc(e.detail)}</span>${assess ? `<span class="m">📷 ${photoCount(e)}장</span>` : ''}`;
+    const inner = `<b>${ddayLabel(dday(e.date))}</b><i class="dot${e.type === 'match' ? ' is-match' : ''}" aria-hidden="true"></i><span>${esc(e.title)}</span><span class="m">${esc(e.date)} ${esc(e.detail)}</span>${assess && photoCount(e) ? `<span class="m">사진 ${photoCount(e)}장</span>` : ''}`;
     const main = assess
         ? `<button type="button" class="ev-main" data-action="openAssess" data-id="${esc(e.id)}">${inner}</button>`
         : `<div class="ev-main">${inner}</div>`;
@@ -33,7 +33,7 @@ export function evRow(e, withDelete = false) {
     return `<div class="ev${e.type === 'match' ? ' is-match' : ''}">${main}${del}</div>`;
 }
 
-const eventForm = type => !isLeader() ? '' : `<section class="card"><h3>➕ 일정 추가</h3>
+const eventForm = type => !isLeader() ? '' : `<section class="card"><h3>일정 추가</h3>
     <form class="row" data-submit="addEvent">
         <select id="ev-type" aria-label="일정 종류" data-keep><option value="assess" ${type === 'assess' ? 'selected' : ''}>수행평가</option><option value="match" ${type === 'match' ? 'selected' : ''}>대항전</option></select>
         <input id="ev-date" type="date" value="${esc(S.sel)}" aria-label="날짜" data-keep>
@@ -42,14 +42,15 @@ const eventForm = type => !isLeader() ? '' : `<section class="card"><h3>➕ 일�
         <button>추가</button>
     </form></section>`;
 
-export function calView() {
+export function calView(filter = 'all') {
+    const evs = filter === 'all' ? S.events : S.events.filter(e => e.type === filter);
     const y = S.calY, m = S.calM;
     const first = new Date(y, m, 1).getDay();
     const days = new Date(y, m + 1, 0).getDate();
     const ym = `${y}-${String(m + 1).padStart(2, '0')}`;
     const td = today();
     const map = new Map();
-    for (const e of S.events) {
+    for (const e of evs) {
         if (!e.date.startsWith(ym)) continue;
         if (!map.has(e.date)) map.set(e.date, []);
         map.get(e.date).push(e);
@@ -62,21 +63,25 @@ export function calView() {
             : `<span class="chip is-match">${esc(e.title)}</span>`).join('');
         cells += `<div class="cal-cell${s === td ? ' is-today' : ''}${s === S.sel ? ' is-sel' : ''}" data-action="pick" data-date="${s}"><button type="button" class="cal-num" data-action="pick" data-date="${s}" aria-label="${m + 1}월 ${d}일 선택"${s === S.sel ? ' aria-pressed="true"' : ''}>${d}</button>${chips}</div>`;
     }
-    const monthList = S.events.filter(e => e.date.startsWith(ym)).sort(byDate);
+    const monthList = evs.filter(e => e.date.startsWith(ym)).sort(byDate);
+    const sd = S.sel.split('-').map(Number);
+    const selLabel = `${sd[1]}월 ${sd[2]}일 (${WEEKDAYS[new Date(sd[0], sd[1] - 1, sd[2]).getDay()]})`;
+    const dayList = evs.filter(e => e.date === S.sel).sort(byDate);
     return `<section class="card">
             <div class="between"><button type="button" class="ghost" data-action="calMove" data-d="-1" aria-label="이전 달">◀</button><b>${y}년 ${m + 1}월</b><button type="button" class="ghost" data-action="calMove" data-d="1" aria-label="다음 달">▶</button></div>
             <div class="cal-grid">${[...WEEKDAYS].map(w => `<div class="cal-w">${w}</div>`).join('')}${cells}</div>
-            <p class="m">노란색은 수행평가, 파란색은 대항전이에요.${isLeader() ? ' 날짜를 누르면 추가 칸에 날짜가 들어가요.' : ''}</p>
+            <p class="m legend"><i class="dot"></i> 수행평가 <i class="dot is-match"></i> 대항전 &nbsp;날짜를 누르면 아래에 그날 일정이 나와요.</p>
         </section>
-        ${eventForm('assess')}
-        <section class="card"><h3>이달의 일정</h3>${monthList.map(e => evRow(e, true)).join('') || '<p class="m">이 달에는 일정이 없어요.</p>'}</section>`;
+        <section class="card"><h3>${selLabel}</h3>${dayList.map(e => evRow(e, true)).join('') || '<p class="m">이 날은 일정이 없어요.</p>'}</section>
+        ${eventForm(filter === 'match' ? 'match' : 'assess')}
+        <section class="card"><h3>${m + 1}월 전체 일정</h3>${monthList.map(e => evRow(e, true)).join('') || '<p class="m">이 달에는 일정이 없어요.</p>'}</section>`;
 }
 
 export function matchView() {
     const list = S.events.filter(e => e.type === 'match').sort(byDate);
     const next = list.filter(e => dday(e.date) >= 0);
     const past = list.filter(e => dday(e.date) < 0).reverse();
-    return `<section class="card"><h3>🏆 다가오는 경기</h3>${next.map(e => evRow(e, true)).join('') || '<p class="m">예정된 경기가 없어요.</p>'}</section>
+    return `<section class="card"><h3>다가오는 경기</h3>${next.map(e => evRow(e, true)).join('') || '<p class="m">예정된 경기가 없어요.</p>'}</section>
         ${eventForm('match')}
         <section class="card"><h3>지난 경기</h3>${past.map(e => evRow(e, true)).join('') || '<p class="m">지난 경기가 없어요.</p>'}</section>`;
 }
@@ -141,7 +146,7 @@ function assessPhotosHtml(e) {
         const name = p.name || `사진 ${i + 1}`;
         return `<a class="photo-card" href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(cldT(p.url, 'w_400,h_300,c_fill,q_auto,f_auto'))}" alt="${esc(name)}" loading="lazy" decoding="async"><span>${esc(name)}</span></a>`;
     }).join('');
-    return `<h3>📷 수행평가 자료 사진 (${photos.length})</h3>${grid ? `<div class="photo-grid">${grid}</div>` : '<p class="m">아직 등록된 사진이 없습니다.</p>'}`;
+    return `<h3>수행평가 자료 사진 (${photos.length})</h3>${grid ? `<div class="photo-grid">${grid}</div>` : '<p class="m">아직 등록된 사진이 없습니다.</p>'}`;
 }
 
 function openAssess(el) {
@@ -149,7 +154,7 @@ function openAssess(el) {
     if (!e) return;
     assessId = e.id;
     openDialog('assess-dlg', `<div class="panel">
-        <div class="panel-head"><div><h2>📝 ${esc(e.title)}</h2><p class="m">${esc(e.date)} · 수행평가</p></div><button type="button" class="ghost" data-action="closeDialog" data-id="assess-dlg">닫기 ✕</button></div>
+        <div class="panel-head"><div><h2>${esc(e.title)}</h2><p class="m">${esc(e.date)} · 수행평가</p></div><button type="button" class="ghost" data-action="closeDialog" data-id="assess-dlg">닫기 ✕</button></div>
         <p class="item-body">${esc(e.detail || '등록된 세부 내용이 없습니다.')}</p>
         <div id="assess-photos"></div>
         ${canUploadAssess() ? `<hr class="sep"><h3>사진 추가 (반장·부반장 전용)</h3>

@@ -21,7 +21,7 @@ export function adminView() {
                ${dev ? `<button type="button" class="ghost" data-action="pwInfo">비밀번호 안내</button><button type="button" class="ghost danger" data-action="revokeUser" data-id="${esc(u.id)}">접근 해제</button>` : ''}`
             : `<i class="badge">${RN[u.role] || ''}</i>`}</span>
     </div>`).join('');
-    const register = !dev ? '' : `<section class="card"><h3>➕ 학생 프로필 등록</h3>
+    const register = !dev ? '' : `<section class="card"><h3>학생 프로필 등록</h3>
             <p class="m">먼저 Firebase Authentication에서 계정을 만들고, 그 계정의 UID를 입력하세요. 이메일은 아이디@maseok103.firebaseapp.com 형식으로 사용하고 비밀번호는 Firebase Authentication에서 관리합니다.</p>
             <form class="row" data-submit="registerUser">
                 <input id="reg-name" placeholder="학생 이름" aria-label="학생 이름" data-keep required>
@@ -32,12 +32,12 @@ export function adminView() {
                 <button>프로필 등록</button>
             </form>
         </section>
-        <section class="card"><h3>💾 데이터 백업</h3>
+        <section class="card"><h3>데이터 백업</h3>
             <p class="m">데이터는 Firebase Firestore에 저장됩니다.</p>
             <div class="row"><button type="button" data-action="exportBackup">내보내기</button>
             <label class="btn">불러오기<input type="file" accept=".json,application/json" hidden data-change="importBackup"></label></div>
         </section>`;
-    return `<section class="card"><h3>👥 학생·역할 관리</h3>${rows}</section>${register}`;
+    return `<section class="card"><h3>학생·역할 관리</h3>${rows}</section>${register}`;
 }
 
 const findUser = id => S.users.find(x => x.id == id);
